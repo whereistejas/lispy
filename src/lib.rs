@@ -1,22 +1,20 @@
-#![allow(dead_code)]
-
 #[derive(Debug, PartialEq)]
-enum Number {
+pub enum Number {
     Int(u32),
     Float(f32),
 }
 #[derive(Debug, PartialEq)]
-enum Atom {
+pub enum Atom {
     Symbol(String),
     Number(Number),
 }
 #[derive(Debug, PartialEq)]
-enum Expr<T> {
+pub enum Expr<T> {
     Atom(Atom),
     List(Vec<T>),
 }
 #[derive(Debug, PartialEq)]
-enum T {
+pub enum T {
     Symbol(String),
     Number(Number),
     Atom(Atom),
@@ -24,9 +22,8 @@ enum T {
     Expr(Expr<T>),
 }
 
-fn tokenize(s: &str) -> Vec<String> {
-    s.replace("(", " ( ")
-        .replace(")", " ) ")
+pub fn tokenize(s: &str) -> Vec<String> {
+    (s.replace("(", " ( ").replace(")", " ) "))
         .split(" ")
         .filter_map(|s| {
             if s.is_empty() {
@@ -38,7 +35,7 @@ fn tokenize(s: &str) -> Vec<String> {
         .collect()
 }
 
-fn parse_atom(atom: &str) -> T {
+pub fn parse_atom(atom: &str) -> T {
     atom.parse::<u32>()
         .map(|i| T::Number(Number::Int(i)))
         .unwrap_or_else(|_| {
@@ -50,7 +47,7 @@ fn parse_atom(atom: &str) -> T {
 
 // Keep recursively reading nested statements.
 // Prepare return all tokens when you encounter the first ")".
-fn parse_from_tokens(tokens: Vec<&str>) -> T {
+pub fn parse_from_tokens(tokens: Vec<&str>) -> T {
     match tokens[..] {
         [] => panic!("unexpected EOF"),
         ["(", ..] => {
