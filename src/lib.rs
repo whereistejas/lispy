@@ -62,7 +62,10 @@ pub fn parse_from_tokens(tokens: Vec<&str>) -> T {
 
             T::Expr(Expr::List(l))
         }
-        [token, ..] => parse_atom(token),
+        [token, ..] => {
+            // We only convert the first token because the caller of this instance will try to parse the next token.
+            parse_atom(token)
+        }
     }
 }
 
