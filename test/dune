@@ -1,2 +1,5 @@
-(test
- (name test_lispy))
+(library
+ (name test_lispy)
+ (inline_tests)
+ (preprocess
+  (pps ppx_inline_test ppx_expect)))
