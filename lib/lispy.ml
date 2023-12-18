@@ -24,7 +24,7 @@ end
 module Symbol = struct
   type t = string
 
-  let pp t = F.pp_print_string F.std_formatter t
+  let pp fmt t = F.pp_print_string fmt t
   let create token : t = token
 end
 
@@ -33,9 +33,9 @@ module Number = struct
     | I of int
     | F of float
 
-  let pp = function
-    | F f -> F.pp_print_float F.std_formatter f
-    | I i -> F.pp_print_int F.std_formatter i
+  let pp fmt = function
+    | F f -> F.pp_print_float fmt f
+    | I i -> F.pp_print_int fmt i
   ;;
 end
 
@@ -44,9 +44,9 @@ module Atom = struct
     | S of Symbol.t
     | N of Number.t
 
-  let pp = function
-    | S s -> Symbol.pp s
-    | N n -> Number.pp n
+  let pp fmt = function
+    | S s -> Symbol.pp fmt s
+    | N n -> Number.pp fmt n
   ;;
 
   let parse token : t =
@@ -87,16 +87,15 @@ module Types = struct
     | Env of (string * string) list
 
   let rec pp fmt = function
-    | Symbol symbol -> Symbol.pp symbol
-    | Number number -> Number.pp number
-    | Atom atom -> Atom.pp atom
+    | Symbol s -> Symbol.pp fmt s
+    | Number n -> Number.pp fmt n
+    | Atom a -> Atom.pp fmt a
     | List l -> pp_list fmt l
     | Exp exp ->
       (match exp with
-       | Exp.A a -> Atom.pp a
-       | Exp.L l -> F.fprintf F.std_formatter "(%a)" pp_inner (List l))
-    | Env env ->
-      List.iter (fun (key, value) -> F.fprintf F.std_formatter "%s %s" key value) env
+       | Exp.A a -> F.fprintf fmt "(%a)" Atom.pp a
+       | Exp.L l -> F.fprintf fmt "(%a)" pp_inner (List l))
+    | Env env -> List.iter (fun (key, value) -> F.fprintf fmt "%s %s" key value) env
 
   and pp_list fmt l =
     F.pp_print_list

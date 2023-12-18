@@ -14,8 +14,15 @@ let%expect_test "pretty_print" =
       (Exp.L
          [ Symbol "begin"
          ; Types.Exp (Exp.L [ Symbol "define"; Symbol "r"; Number (Number.I 10) ])
+         ; Types.Exp
+             (Exp.L
+                [ Symbol "*"
+                ; Symbol "pi"
+                ; Types.Exp (Exp.L [ Symbol "*"; Symbol "r"; Symbol "r" ])
+                ])
          ])
   in
   F.printf "%a" Types.pp t;
-  [%expect {|(begin (define r 10))|}]
+  [%expect {|(begin (define r 10) (* pi (* r r)))|}]
+;;
 ;;
