@@ -1,2 +1,3 @@
 (library
- (name lispy))
+ (name lispy)
+ (libraries str))
