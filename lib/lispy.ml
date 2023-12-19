@@ -3,7 +3,6 @@ module F = Format
 module Tokens = struct
   type t = string list
 
-  (* Pretty print tokens*)
   let pp fmt t =
     F.pp_print_list
       ~pp_sep:(fun fmt () -> F.fprintf fmt ", ")
@@ -26,23 +25,18 @@ module Types = struct
     | A of atom
     | L of t list
 
-  and number =
-    | F of float
-    | I of int
-
   and atom =
     | S of string
     | N of number
 
-  let rec pp_number fmt n =
-    match n with
-    | F f -> F.pp_print_float fmt f
-    | I i -> F.pp_print_int fmt i
+  and number =
+    | F of float
+    | I of int
 
-  and pp_atom fmt a =
-    match a with
-    | S s -> F.pp_print_string fmt s
-    | N n -> pp_number fmt n
+  let rec pp fmt t =
+    match t with
+    | A a -> pp_atom fmt a
+    | L l -> F.fprintf fmt "(%a)" pp_list l
 
   and pp_list fmt l =
     F.pp_print_list
@@ -51,10 +45,15 @@ module Types = struct
       fmt
       l
 
-  and pp fmt t =
-    match t with
-    | A a -> pp_atom fmt a
-    | L l -> F.fprintf fmt "(%a)" pp_list l
+  and pp_atom fmt a =
+    match a with
+    | S s -> F.pp_print_string fmt s
+    | N n -> pp_number fmt n
+
+  and pp_number fmt n =
+    match n with
+    | F f -> F.pp_print_float fmt f
+    | I i -> F.pp_print_int fmt i
   ;;
 
   let rec parse dbg tokens =
