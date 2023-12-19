@@ -25,4 +25,9 @@ let%expect_test "pretty_print" =
   F.printf "%a" Types.pp t;
   [%expect {|(begin (define r 10) (* pi (* r r)))|}]
 ;;
+
+let%expect_test "parse" =
+  let t = Tokens.tokenize "(begin (define r 10) (* pi (* r r)))" |> Types.parse in
+  F.printf "%a" Types.pp t;
+  [%expect {|(begin (define r 10) (* pi (* r r)))|}]
 ;;

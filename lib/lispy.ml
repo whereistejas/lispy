@@ -83,8 +83,9 @@ module Types = struct
     | Number of Number.t
     | Atom of Atom.t
     | List of t list
-    | Exp of t Exp.t
+    | Exp of t Exp.t (* An expression can be an Atom or a List of t*)
     | Env of (string * string) list
+    | End
 
   let rec pp fmt = function
     | Symbol s -> Symbol.pp fmt s
@@ -94,45 +95,44 @@ module Types = struct
     | Exp exp ->
       (match exp with
        | Exp.A a -> F.fprintf fmt "(%a)" Atom.pp a
-       | Exp.L l -> F.fprintf fmt "(%a)" pp_inner (List l))
+       | Exp.L l -> F.fprintf fmt "(%a)" pp_list l)
     | Env env -> List.iter (fun (key, value) -> F.fprintf fmt "%s %s" key value) env
+    | End -> ()
 
   and pp_list fmt l =
-    F.pp_print_list
-      ~pp_sep:(fun fmt () -> F.fprintf fmt " ")
-      (fun fmt t -> F.fprintf fmt "%a" pp t)
-      fmt
-      l
+    List.filter (fun x -> x <> End) l
+    |> F.pp_print_list
+         ~pp_sep:(fun fmt () -> F.fprintf fmt " ")
+         (fun fmt t -> F.fprintf fmt "%a" pp t)
+         fmt
 
   and pp_inner fmt t =
     match t with
-    | Symbol _ | Number _ | Atom _ | Env _ -> pp fmt t
+    | Symbol _ | Number _ | Atom _ | Env _ | End -> pp fmt t
     | List l -> F.fprintf fmt "%a" pp_list l
     | Exp _ -> F.fprintf fmt "%a" pp t
   ;;
 
   let rec parse tokens =
-    let () = F.printf "token: [%a]\n" Tokens.pp tokens in
     match tokens with
-    | [] -> raise (Failure "Unexpected EOF")
-    | "(" :: tail ->
-      let acc =
-        let exception Return of t list in
-        try
-          List.fold_left
-            (fun acc x ->
-              match x with
-              | ")" -> raise (Return acc)
-              | _ ->
-                (match tail with
-                 | _ :: tl -> parse tl :: acc
-                 | [] -> []))
-            []
-            tail
-        with
-        | Return ret -> ret
-      in
-      Exp (Exp.L acc)
-    | token :: _ -> Atom (Atom.parse token)
+    | [] -> End
+    | "(" :: tl ->
+      let e, remaining = parse_expr tl in
+      let l = e @ [ parse remaining ] in
+      Exp (Exp.L l)
+    | ")" :: tl -> parse tl
+    | _ -> raise (Failure "unreachable")
+
+  (* returns the parsed expression and remaining tokens *)
+  and parse_expr tokens =
+    match tokens with
+    | [] -> [], []
+    | "(" :: tl ->
+      let e, r = parse_expr tl in
+      Exp (Exp.L e) :: [], r
+    | ")" :: tl -> [], tl
+    | token :: tl ->
+      let p, r = parse_expr tl in
+      Atom (Atom.parse token) :: p, r
   ;;
 end
