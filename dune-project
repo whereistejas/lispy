@@ -5,22 +5,19 @@
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github whereistejas/lispy))
 
-(authors "Author Name")
-
-(maintainers "Maintainer Name")
-
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(authors "Tejas Sanap")
 
 (package
  (name lispy)
- (synopsis "A short synopsis")
- (description "A longer description")
- (depends ocaml dune)
- (tags
-  (topics "to describe" your project)))
+ (synopsis "A toy Lisp implementation")
+ (depends
+  ocaml
+  dune
+  (ppx_inline_test
+   (>= 0.16.1))
+  (ppx_expect
+   (>= 0.16.0))))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/dune-files.html#dune-project
