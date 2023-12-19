@@ -69,14 +69,6 @@ module Exp = struct
     | L of 't list
 end
 
-let rec split_at n l =
-  match l with
-  | [] -> [], []
-  | hd :: tl ->
-    let before, after = split_at (n - 1) tl in
-    if n > 0 then hd :: before, after else before, hd :: after
-;;
-
 module Types = struct
   type t =
     | Symbol of Symbol.t
