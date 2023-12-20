@@ -66,23 +66,21 @@ module Types = struct
        | [] -> raise (Failure "Syntax error")
        | tl -> parse dbg tl)
     | _ ->
-      let expr, tl = parse_list dbg tokens in
-      if dbg
-      then (
-        F.printf "Expr : %a\n" pp (L expr);
-        F.printf "Rem  : %a\n" Tokens.pp tl);
+      let expr, tl = parse_expr dbg tokens in
+      if dbg then F.printf "Expr : %a\n" pp (L expr);
+      if dbg then F.printf "Rem  : %a\n" Tokens.pp (Option.value tl ~default:[]);
       (match tl with
-       | [] -> L expr
-       | tl -> L (expr @ [ parse dbg tl ]))
+       | None -> L expr
+       | Some tl -> L (expr @ [ parse dbg tl ]))
 
-  and parse_list dbg tokens =
+  and parse_expr dbg tokens =
     match tokens with
-    | [] -> [], []
-    | "(" :: _ -> [ parse dbg tokens ], []
-    | ")" :: tl -> [], tl
+    | [] -> [], None
+    | "(" :: _ -> [ parse dbg tokens ], None
+    | ")" :: tl -> [], Some tl
     | token :: tl ->
       if dbg then F.printf "List : %a\n" Tokens.pp tokens;
-      let expr, tl = parse_list dbg tl in
+      let expr, tl = parse_expr dbg tl in
       parse_atom token :: expr, tl
 
   and parse_atom token =

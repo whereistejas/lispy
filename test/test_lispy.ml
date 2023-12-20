@@ -47,6 +47,18 @@ let%expect_test "parse_single_closing_paren" =
     [%expect {|Syntax error|}]
 ;;
 
+let%expect_test "parse_single_opening_paren" =
+  let open Tokens in
+  let open Types in
+  try
+    let t = tokenize "(" |> parse false in
+    F.printf "%a" pp t
+  with
+  | Failure msg ->
+    F.printf "%s" msg;
+    [%expect {|Syntax error|}]
+;;
+
 let%expect_test "pp_define_radius" =
   let open Types in
   let t = L [ A (S "define"); A (S "r"); A (N (I 10)) ] in
