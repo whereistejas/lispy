@@ -35,7 +35,13 @@ module Types = struct
 
   let rec pp fmt t =
     match t with
-    | A a -> pp_atom fmt a
+    | A a ->
+      (match a with
+       | S s -> F.pp_print_string fmt s
+       | N n ->
+         (match n with
+          | F f -> F.pp_print_float fmt f
+          | I i -> F.pp_print_int fmt i))
     | L l -> F.fprintf fmt "(%a)" pp_list l
 
   and pp_list fmt l =
@@ -44,41 +50,51 @@ module Types = struct
       (fun fmt t -> pp fmt t)
       fmt
       l
+  ;;
 
-  and pp_atom fmt a =
-    match a with
-    | S s -> F.pp_print_string fmt s
-    | N n -> pp_number fmt n
-
-  and pp_number fmt n =
-    match n with
-    | F f -> F.pp_print_float fmt f
-    | I i -> F.pp_print_int fmt i
+  let rec split_at n l =
+    match l with
+    | [] -> [], []
+    | hd :: tl ->
+      let before, after = split_at (n - 1) tl in
+      if n > 0 then hd :: before, after else before, hd :: after
   ;;
 
   let rec parse dbg tokens =
     match tokens with
     | [] -> raise (Failure "Unexpected EOF")
     | "(" :: tl ->
-      let expr, remaining = parse_list tl in
-      (match remaining with
-       | [] | ")" :: [] -> L expr
-       | ")" :: tl ->
-         if dbg then F.eprintf "E: %a\n" pp (L expr);
-         L (parse dbg tl :: expr)
-       | _ -> raise (Failure ". Syntax error"))
+      if dbg then F.printf "Open: %a\n" Tokens.pp tl;
+      parse_expr dbg tl
     | t ->
-      if dbg then F.printf "T: %a\n" Tokens.pp t;
-      raise (Failure "Syntax error")
+      if dbg then F.printf "ParseE: %a\n" Tokens.pp t;
+      parse_expr dbg tokens
 
-  (* returns a list of atoms and remaining tokens *)
-  and parse_list tokens =
+  and parse_expr dbg tokens =
+    match tokens with
+    | "(" :: tl ->
+      if dbg then F.printf "Open : %a\n" Tokens.pp tl;
+      parse_expr dbg tl
+    | ")" :: tl ->
+      if dbg then F.printf "Close: %a\n" Tokens.pp tl;
+      parse dbg tl
+    | tokens ->
+      if dbg then F.printf "ParseL: %a\n" Tokens.pp tokens;
+      let expr, tl = parse_list dbg tokens in
+      if dbg then F.printf "Expr : %a\n" pp (L expr);
+      (match tl with
+       | [] -> L expr
+       | tl -> L (expr @ [ parse_expr dbg tl ]))
+
+  and parse_list dbg tokens =
     match tokens with
     | [] -> [], []
-    | ")" :: tokens -> [], tokens
+    | ")" :: tl -> [], tl
+    | "(" :: tl -> [ parse_expr dbg tl ], []
     | token :: tl ->
-      let expr, remaining = parse_list tl in
-      parse_atom token :: expr, remaining
+      if dbg then F.printf "List : %a\n" Tokens.pp tl;
+      let expr, tl = parse_list dbg tl in
+      parse_atom token :: expr, tl
 
   and parse_atom token =
     try
@@ -93,3 +109,37 @@ module Types = struct
        | Failure _ -> A (S token))
   ;;
 end
+
+(* let rec parse dbg tokens =
+   if dbg then F.printf "Start: %a\n" Tokens.pp tokens;
+   match tokens with
+   | [] -> raise (Failure "Unexpected EOF")
+   | "(" :: _ -> parse_expr dbg tokens
+   | t ->
+   if dbg then F.printf "Error: %a\n" Tokens.pp t;
+   raise (Failure "Syntax error") *)
+
+(* and parse_expr dbg tokens =
+    match tokens with
+    | ")" :: tl ->
+      if dbg then F.printf "Close: %a\n" Tokens.pp tl;
+      L [ parse dbg tl ]
+    | "(" :: tl ->
+      if dbg then F.printf "Open : %a\n" Tokens.pp tl;
+      parse_expr dbg tl
+    | _ ->
+      let expr, tl = parse_list dbg tokens in
+      if dbg then F.printf "Expr : %a\n" pp (L expr);
+      L (expr @ [ parse dbg tl ]) *)
+(*
+   (** Returns a list of atoms and remaining tokens *)
+   and parse_list dbg tokens =
+   match tokens with
+   | [] -> [], []
+   (* This branch will only be called through recursive calls by self *)
+   | "(" :: _ -> [ parse_expr dbg tokens ], []
+   | ")" :: _ -> [ parse_expr dbg tokens ], []
+   | token :: tl ->
+   assert (token <> "(");
+   let expr, remaining = parse_list dbg tl in
+   parse_atom token :: expr, remaining *)

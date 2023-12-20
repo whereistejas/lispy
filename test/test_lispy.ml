@@ -16,13 +16,6 @@ let%expect_test "pp_empty_list" =
   [%expect {|()|}]
 ;;
 
-let%expect_test "pp_one_atom" =
-  let open Types in
-  let t = L [ A (N (F 0.1)) ] in
-  F.printf "%a" pp t;
-  [%expect {|(0.1)|}]
-;;
-
 let%expect_test "parse_empty_string" =
   let open Tokens in
   let open Types in
@@ -33,6 +26,13 @@ let%expect_test "parse_empty_string" =
   | Failure msg ->
     F.printf "%s" msg;
     [%expect {|Unexpected EOF|}]
+;;
+
+let%expect_test "pp_one_atom" =
+  let open Types in
+  let t = L [ A (N (F 0.1)) ] in
+  F.printf "%a" pp t;
+  [%expect {|(0.1)|}]
 ;;
 
 let%expect_test "parse_single_closing_paren" =
