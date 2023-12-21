@@ -1,100 +1,136 @@
 module F = Format
 
 module Tokens = struct
-  type t = string list
-
-  let pp fmt t =
-    F.pp_print_list
-      ~pp_sep:(fun fmt () -> F.fprintf fmt ", ")
-      (fun fmt t -> F.fprintf fmt "\"%s\"" t)
-      fmt
-      t
-  ;;
-
-  (* Tokenize program from raw string *)
-  let tokenize s : t =
-    Str.global_replace (Str.regexp_string "(") " ( " s
-    |> Str.global_replace (Str.regexp_string ")") " ) "
-    |> String.split_on_char ' '
-    |> List.filter (fun token -> token <> String.empty)
-  ;;
-end
-
-module Types = struct
   type t =
-    | A of atom
-    | L of t list
-
-  and atom =
+    | OP
     | S of string
     | N of number
+    | CP
 
   and number =
     | F of float
     | I of int
 
-  let rec pp fmt t =
+  let to_string t =
     match t with
-    | A a ->
-      (match a with
-       | S s -> F.pp_print_string fmt s
-       | N n ->
-         (match n with
-          | F f -> F.pp_print_float fmt f
-          | I i -> F.pp_print_int fmt i))
-    | L l -> F.fprintf fmt "(%a)" pp_list l
-
-  and pp_list fmt l =
-    F.pp_print_list
-      ~pp_sep:(fun fmt () -> F.fprintf fmt " ")
-      (fun fmt t -> pp fmt t)
-      fmt
-      l
+    | OP -> "("
+    | CP -> ")"
+    | S s -> s
+    | N n ->
+      (match n with
+       | F f -> Float.to_string f
+       | I i -> Int.to_string i)
   ;;
 
-  let rec parse dbg tokens =
+  let pp fmt tokens =
+    F.pp_print_list
+      ~pp_sep:(fun fmt () -> F.fprintf fmt ", ")
+      (fun fmt token -> F.fprintf fmt "\"%s\"" (to_string token))
+      fmt
+      tokens
+  ;;
+
+  (* Tokenize program from raw string *)
+  let tokenize s : t list =
+    Str.global_replace (Str.regexp_string "(") " ( " s
+    |> Str.global_replace (Str.regexp_string ")") " ) "
+    |> String.split_on_char ' '
+    |> List.filter (fun token -> token <> String.empty)
+    |> List.map (fun token ->
+      match token with
+      | "(" -> OP
+      | ")" -> CP
+      | _ ->
+        (try
+           let i = int_of_string token in
+           N (I i)
+         with
+         | Failure _ ->
+           (try
+              let f = float_of_string token in
+              N (F f)
+            with
+            | Failure _ -> S token)))
+  ;;
+end
+
+module Types = struct
+  type t =
+    | Atom of Tokens.t
+    | Expr of t list
+
+  let unexpected_token expected actual =
+    Failure
+      ("Syntax error: Expected \""
+       ^ Tokens.to_string expected
+       ^ "\", found \""
+       ^ Tokens.to_string actual
+       ^ "\"")
+  ;;
+
+  let unexpected_eof = Failure "Unexpected EOF"
+
+  let rec pp fmt t =
+    match t with
+    | Atom a -> F.fprintf fmt "%s" (Tokens.to_string a)
+    | Expr e -> F.fprintf fmt "%a" pp_l e
+
+  and pp_l e =
+    F.pp_print_list ~pp_sep:(fun fmt () -> F.fprintf fmt " ") (fun fmt x -> pp fmt x) e
+  ;;
+
+  let rec parse_token token acc tokens =
     match tokens with
-    | [] -> raise (Failure "Unexpected EOF")
-    | "(" :: tl ->
-      if dbg then F.printf "Open : %a\n" Tokens.pp tl;
-      (match tl with
-       | [] -> raise (Failure "Syntax error")
-       | tl -> parse dbg tl)
-    | ")" :: tl ->
-      if dbg then F.printf "Close: %a\n" Tokens.pp tl;
-      (match tl with
-       | [] -> raise (Failure "Syntax error")
-       | tl -> parse dbg tl)
-    | _ ->
-      let expr, tl = parse_expr dbg tokens in
-      if dbg then F.printf "Expr : %a\n" pp (L expr);
-      if dbg then F.printf "Rem  : %a\n" Tokens.pp (Option.value tl ~default:[]);
-      (match tl with
-       | None -> L expr
-       | Some tl -> L (expr @ [ parse dbg tl ]))
+    | [] -> raise unexpected_eof
+    | t :: tl when t = token -> Ok (Atom t :: acc, tl)
+    | t :: _ -> Error (unexpected_token token t)
 
-  and parse_expr dbg tokens =
+  and parse_atom acc tokens =
     match tokens with
-    | [] -> [], None
-    | "(" :: _ -> [ parse dbg tokens ], None
-    | ")" :: tl -> [], Some tl
-    | token :: tl ->
-      if dbg then F.printf "List : %a\n" Tokens.pp tokens;
-      let expr, tl = parse_expr dbg tl in
-      parse_atom token :: expr, tl
+    | [] -> Error unexpected_eof
+    | (Tokens.S _ as token) :: tl -> Ok (Atom token :: acc, tl)
+    | (Tokens.N _ as token) :: tl -> Ok (Atom token :: acc, tl)
+    | t :: _ -> Error (unexpected_token (Tokens.S "Symbol|Number") t)
 
-  and parse_atom token =
-    try
-      let i = int_of_string token in
-      A (N (I i))
-    with
-    | Failure _ ->
-      (try
-         let f = float_of_string token in
-         A (N (F f))
-       with
-       | Failure _ -> A (S token))
+  and parse_expr acc tokens =
+    (* Use [custom operator] for joining parsers so that we can remove this `List.rev`.
+       [custom operator]: https://ocaml.org/docs/operators#operator-associativity-and-precedence
+    *)
+    match parse_token Tokens.OP [] tokens with
+    | Ok (acci, tl) ->
+      (match parse_atom acci tl with
+       | Ok (acci, tl) ->
+         (match parse_atom acci tl with
+          | Ok (acci, tl) ->
+            (match parse_atom acci tl with
+             | Ok (acci, tl) ->
+               (match parse_token Tokens.CP acci tl with
+                | Ok (acci, tl) -> Ok (Expr (List.rev acci) :: acc, tl)
+                | Error exn -> Error exn)
+             | Error exn -> Error exn)
+          | Error exn -> Error exn)
+       | Error exn -> Error exn)
+    | Error exn -> Error exn
 
-  and is_paren p = p = "(" || p = ")"
-  and dbg_format p = if p = "(" then "Open : %a\n" else "Close: %a\n"
+  and parse_literal tokens =
+    match parse_token Tokens.OP [] tokens with
+    | Ok (acc, tl) ->
+      (match parse_atom acc tl with
+       | Ok (acc, tl) ->
+         (match parse_token Tokens.CP acc tl with
+          | Ok (acc, _) -> Ok (Expr (List.rev acc))
+          | Error exn -> Error exn)
+       | Error exn -> Error exn)
+    | Error exn -> Error exn
+
+  and parse tokens =
+    match parse_expr [] tokens with
+    | Ok (acc, tl) ->
+      assert (tl = []);
+      Expr acc
+    | Error _ ->
+      (match parse_literal tokens with
+       | Ok literal -> literal
+       | Error exn -> raise exn)
+  ;;
 end
