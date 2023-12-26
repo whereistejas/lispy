@@ -1,138 +1,120 @@
 module F = Format
 
 module Tokens = struct
-  type t = string list
+  type t =
+    | OP
+    | S of string
+    | N of number
+    | CP
 
-  (* Pretty print tokens*)
-  let pp fmt t =
+  and number =
+    | F of float
+    | I of int
+
+  let to_string t =
+    match t with
+    | OP -> "("
+    | CP -> ")"
+    | S s -> s
+    | N n ->
+      (match n with
+       | F f -> Float.to_string f
+       | I i -> Int.to_string i)
+  ;;
+
+  let pp fmt tokens =
     F.pp_print_list
       ~pp_sep:(fun fmt () -> F.fprintf fmt ", ")
-      (fun fmt t -> F.fprintf fmt "\"%s\"" t)
+      (fun fmt token -> F.fprintf fmt "\"%s\"" (to_string token))
       fmt
-      t
+      tokens
   ;;
 
   (* Tokenize program from raw string *)
-  let tokenize s : t =
+  let tokenize s : t list =
     Str.global_replace (Str.regexp_string "(") " ( " s
     |> Str.global_replace (Str.regexp_string ")") " ) "
     |> String.split_on_char ' '
     |> List.filter (fun token -> token <> String.empty)
+    |> List.map (fun token ->
+      match token with
+      | "(" -> OP
+      | ")" -> CP
+      | _ ->
+        (try
+           let i = int_of_string token in
+           N (I i)
+         with
+         | Failure _ ->
+           (try
+              let f = float_of_string token in
+              N (F f)
+            with
+            | Failure _ -> S token)))
   ;;
 end
-
-module Symbol = struct
-  type t = string
-
-  let pp fmt t = F.pp_print_string fmt t
-  let create token : t = token
-end
-
-module Number = struct
-  type t =
-    | I of int
-    | F of float
-
-  let pp fmt = function
-    | F f -> F.pp_print_float fmt f
-    | I i -> F.pp_print_int fmt i
-  ;;
-end
-
-module Atom = struct
-  type t =
-    | S of Symbol.t
-    | N of Number.t
-
-  let pp fmt = function
-    | S s -> Symbol.pp fmt s
-    | N n -> Number.pp fmt n
-  ;;
-
-  let parse token : t =
-    try
-      let i = int_of_string token in
-      N (Number.I i)
-    with
-    | Failure _ ->
-      (try
-         let f = float_of_string token in
-         N (Number.F f)
-       with
-       | Failure _ -> S (Symbol.create token))
-  ;;
-end
-
-module Exp = struct
-  type 't t =
-    | A of Atom.t
-    | L of 't list
-end
-
-let rec split_at n l =
-  match l with
-  | [] -> [], []
-  | hd :: tl ->
-    let before, after = split_at (n - 1) tl in
-    if n > 0 then hd :: before, after else before, hd :: after
-;;
 
 module Types = struct
   type t =
-    | Symbol of Symbol.t
-    | Number of Number.t
-    | Atom of Atom.t
-    | List of t list
-    | Exp of t Exp.t (* An expression can be an Atom or a List of t*)
-    | Env of (string * string) list
-    | End
+    | Atom of Tokens.t
+    | Expr of t list
 
-  let rec pp fmt = function
-    | Symbol s -> Symbol.pp fmt s
-    | Number n -> Number.pp fmt n
-    | Atom a -> Atom.pp fmt a
-    | List l -> pp_list fmt l
-    | Exp exp ->
-      (match exp with
-       | Exp.A a -> F.fprintf fmt "(%a)" Atom.pp a
-       | Exp.L l -> F.fprintf fmt "(%a)" pp_list l)
-    | Env env -> List.iter (fun (key, value) -> F.fprintf fmt "%s %s" key value) env
-    | End -> ()
-
-  and pp_list fmt l =
-    List.filter (fun x -> x <> End) l
-    |> F.pp_print_list
-         ~pp_sep:(fun fmt () -> F.fprintf fmt " ")
-         (fun fmt t -> F.fprintf fmt "%a" pp t)
-         fmt
-
-  and pp_inner fmt t =
-    match t with
-    | Symbol _ | Number _ | Atom _ | Env _ | End -> pp fmt t
-    | List l -> F.fprintf fmt "%a" pp_list l
-    | Exp _ -> F.fprintf fmt "%a" pp t
+  let unexpected_token expected actual =
+    Failure
+      ("Syntax error: Expected \""
+       ^ Tokens.to_string expected
+       ^ "\", found \""
+       ^ Tokens.to_string actual
+       ^ "\"")
   ;;
 
-  let rec parse tokens =
-    match tokens with
-    | [] -> End
-    | "(" :: tl ->
-      let e, remaining = parse_expr tl in
-      let l = e @ [ parse remaining ] in
-      Exp (Exp.L l)
-    | ")" :: tl -> parse tl
-    | _ -> raise (Failure "unreachable")
+  let rec pp fmt t =
+    match t with
+    | Atom a -> F.fprintf fmt "%s" (Tokens.to_string a)
+    | Expr e -> F.fprintf fmt "%a" pp_l e
 
-  (* returns the parsed expression and remaining tokens *)
-  and parse_expr tokens =
+  and pp_l e =
+    F.pp_print_list ~pp_sep:(fun fmt () -> F.fprintf fmt " ") (fun fmt x -> pp fmt x) e
+  ;;
+
+  let rec parse_token token acc tokens =
     match tokens with
-    | [] -> [], []
-    | "(" :: tl ->
-      let e, r = parse_expr tl in
-      Exp (Exp.L e) :: [], r
-    | ")" :: tl -> [], tl
-    | token :: tl ->
-      let p, r = parse_expr tl in
-      Atom (Atom.parse token) :: p, r
+    | [] -> raise (Failure "Unexpected EOF")
+    | t :: tl when t = token -> Ok (Atom t :: acc, tl)
+    | t :: _ -> Error (unexpected_token token t)
+
+  and parse_atom acc tokens =
+    match tokens with
+    | [] -> Error (Failure "Unexpected EOF")
+    | Tokens.OP :: _ -> parse_expr acc tokens
+    | (Tokens.S _ as token) :: tl -> Ok (Atom token :: acc, tl)
+    | (Tokens.N _ as token) :: tl -> Ok (Atom token :: acc, tl)
+    | t :: _ -> Error (unexpected_token (Tokens.S "Symbol|Number") t)
+
+  and parse_expr acc tokens =
+    match parse_token Tokens.OP [] tokens with
+    | Ok (acci, tl) ->
+      (match parse_atom acci tl with
+       | Ok (acci, tl) ->
+         (match parse_atom acci tl with
+          | Ok (acci, tl) ->
+            (match parse_atom acci tl with
+             | Ok (acci, tl) ->
+               (match parse_token Tokens.CP acci tl with
+                | Ok (acci, tl) -> Ok (Expr (List.rev acci) :: acc, tl)
+                | Error exn -> Error exn)
+             | Error exn -> Error exn)
+          | Error exn -> Error exn)
+       | Error exn -> Error exn)
+    | Error exn -> Error exn
+
+  (* TODO: Try to add ".+" and ".-" and so on to understand how the tree is being traversed. *)
+  and parse tokens =
+    match tokens with
+    | [] -> raise (Failure "Unexpected EOF")
+    | t ->
+      (match parse_expr [] t with
+       | Ok (acc, _tl) -> Expr acc
+       | Error exn -> raise exn)
   ;;
 end
