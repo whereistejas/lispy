@@ -68,8 +68,6 @@ module Types = struct
        ^ "\"")
   ;;
 
-  let unexpected_eof = Failure "Unexpected EOF"
-
   let rec pp fmt t =
     match t with
     | Atom a -> F.fprintf fmt "%s" (Tokens.to_string a)
@@ -81,56 +79,54 @@ module Types = struct
 
   let rec parse_token token acc tokens =
     match tokens with
-    | [] -> raise unexpected_eof
+    | [] -> raise (Failure "Unexpected EOF")
     | t :: tl when t = token -> Ok (Atom t :: acc, tl)
     | t :: _ -> Error (unexpected_token token t)
 
   and parse_atom acc tokens =
     match tokens with
-    | [] -> Error unexpected_eof
+    | [] -> Error (Failure "Unexpected EOF")
     | (Tokens.S _ as token) :: tl -> Ok (Atom token :: acc, tl)
     | (Tokens.N _ as token) :: tl -> Ok (Atom token :: acc, tl)
     | t :: _ -> Error (unexpected_token (Tokens.S "Symbol|Number") t)
 
   and parse_expr acc tokens =
-    (* Use [custom operator] for joining parsers so that we can remove this `List.rev`.
+    (* TODO: Use [custom operator] for joining parsers so that we can remove this `List.rev`.
        [custom operator]: https://ocaml.org/docs/operators#operator-associativity-and-precedence
     *)
+    (* TODO: Write wrapper methods to make compositing parsers easier. *)
     match parse_token Tokens.OP [] tokens with
     | Ok (acci, tl) ->
+      (* F.printf ". +\n    ACC: %a\n    REM: %a" pp (Expr acci) Tokens.pp tl; *)
       (match parse_atom acci tl with
        | Ok (acci, tl) ->
+         (* F.printf ".. +\n    ACC: %a\n    REM: %a" pp (Expr acci) Tokens.pp tl; *)
          (match parse_atom acci tl with
           | Ok (acci, tl) ->
+            (* F.printf "... +\n    ACC: %a\n    REM: %a" pp (Expr acci) Tokens.pp tl; *)
             (match parse_atom acci tl with
              | Ok (acci, tl) ->
+               (* F.printf ".... +\n    ACC: %a\n    REM: %a" pp (Expr acci) Tokens.pp tl; *)
                (match parse_token Tokens.CP acci tl with
                 | Ok (acci, tl) -> Ok (Expr (List.rev acci) :: acc, tl)
                 | Error exn -> Error exn)
-             | Error exn -> Error exn)
-          | Error exn -> Error exn)
-       | Error exn -> Error exn)
-    | Error exn -> Error exn
+             | Error exn ->
+               (* print_endline ".... -"; *)
+               Error exn)
+          | Error exn ->
+            (* print_endline "... -"; *)
+            Error exn)
+       | Error exn ->
+         (* print_endline ".. -"; *)
+         Error exn)
+    | Error exn ->
+      (* print_endline ". -"; *)
+      Error exn
 
-  and parse_literal tokens =
-    match parse_token Tokens.OP [] tokens with
-    | Ok (acc, tl) ->
-      (match parse_atom acc tl with
-       | Ok (acc, tl) ->
-         (match parse_token Tokens.CP acc tl with
-          | Ok (acc, _) -> Ok (Expr (List.rev acc))
-          | Error exn -> Error exn)
-       | Error exn -> Error exn)
-    | Error exn -> Error exn
-
+  (* TODO: Try to add ".+" and ".-" and so on to understand how the tree is being traversed. *)
   and parse tokens =
     match parse_expr [] tokens with
-    | Ok (acc, tl) ->
-      assert (tl = []);
-      Expr acc
-    | Error _ ->
-      (match parse_literal tokens with
-       | Ok literal -> literal
-       | Error exn -> raise exn)
+    | Ok (acc, _tl) -> Expr acc
+    | Error exn -> raise exn
   ;;
 end

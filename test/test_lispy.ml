@@ -1,56 +1,12 @@
 module F = Format
 open Lispy
 
-let%expect_test "tokenize" =
-  let open Tokens in
-  let t = tokenize "(begin (define r 10) (* pi (* r r)))" in
-  F.printf "%a" pp t;
-  [%expect
-    {|"(", "begin", "(", "define", "r", "10", ")", "(", "*", "pi", "(", "*", "r", "r", ")", ")", ")"|}]
-;;
-
 let%expect_test "pp_empty_list" =
   let open Tokens in
   let open Types in
   let t = Expr [ Atom OP; Atom CP ] in
   F.printf "%a" Types.pp t;
   [%expect {|( )|}]
-;;
-
-let%expect_test "parse_unexpected_eof_simple" =
-  let open Tokens in
-  let open Types in
-  try
-    let t = tokenize "" |> parse in
-    F.printf "%a" Types.pp t
-  with
-  | Failure msg ->
-    F.printf "%s" msg;
-    [%expect {|Unexpected EOF|}]
-;;
-
-let%expect_test "parse_unexpected_eof" =
-  let open Tokens in
-  let open Types in
-  try
-    let t = tokenize "(" |> parse in
-    F.printf "%a" Types.pp t
-  with
-  | Failure msg ->
-    F.printf "%s" msg;
-    [%expect {|Unexpected EOF|}]
-;;
-
-let%expect_test "parse_single_closing_paren" =
-  let open Tokens in
-  let open Types in
-  try
-    let t = tokenize ")" |> parse in
-    F.printf "%a" pp t
-  with
-  | Failure msg ->
-    F.printf "%s" msg;
-    [%expect {|Syntax error: Expected "(", found ")"|}]
 ;;
 
 let%expect_test "pp_one_atom" =
@@ -89,6 +45,50 @@ let%expect_test "pp_area_of_circle" =
   in
   F.printf "%a" pp t;
   [%expect {|( begin ( define r 10 ) ( * pi ( * r r ) ) )|}]
+;;
+
+let%expect_test "tokenize" =
+  let open Tokens in
+  let t = tokenize "(begin (define r 10) (* pi (* r r)))" in
+  F.printf "%a" pp t;
+  [%expect
+    {|"(", "begin", "(", "define", "r", "10", ")", "(", "*", "pi", "(", "*", "r", "r", ")", ")", ")"|}]
+;;
+
+let%expect_test "parse_unexpected_eof_simple" =
+  let open Tokens in
+  let open Types in
+  try
+    let t = tokenize "" |> parse in
+    F.printf "%a" Types.pp t
+  with
+  | Failure msg ->
+    F.printf "%s" msg;
+    [%expect {|Unexpected EOF|}]
+;;
+
+let%expect_test "parse_unexpected_eof" =
+  let open Tokens in
+  let open Types in
+  try
+    let t = tokenize "(" |> parse in
+    F.printf "%a" Types.pp t
+  with
+  | Failure msg ->
+    F.printf "%s" msg;
+    [%expect {|Unexpected EOF|}]
+;;
+
+let%expect_test "parse_single_closing_paren" =
+  let open Tokens in
+  let open Types in
+  try
+    let t = tokenize ")" |> parse in
+    F.printf "%a" pp t
+  with
+  | Failure msg ->
+    F.printf "%s" msg;
+    [%expect {|Syntax error: Expected "(", found ")"|}]
 ;;
 
 let%expect_test "parse_area_of_circle" =
