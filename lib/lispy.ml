@@ -83,22 +83,22 @@ module Types = struct
     | t :: tl when t = token -> Ok (Atom t :: acc, tl)
     | t :: _ -> Error (unexpected_token token t)
 
-  and parse_atom acc tokens =
+  and try_parse_atom acc tokens =
     match tokens with
     | [] -> Error (Failure "Unexpected EOF")
-    | Tokens.OP :: _ -> parse_expr acc tokens
+    | Tokens.OP :: _ -> try_parse_expr acc tokens
     | (Tokens.S _ as token) :: tl -> Ok (Atom token :: acc, tl)
     | (Tokens.N _ as token) :: tl -> Ok (Atom token :: acc, tl)
     | t :: _ -> Error (unexpected_token (Tokens.S "Symbol|Number") t)
 
-  and parse_expr acc tokens =
+  and try_parse_expr acc tokens =
     match parse_token Tokens.OP [] tokens with
     | Ok (acci, tl) ->
-      (match parse_atom acci tl with
+      (match try_parse_atom acci tl with
        | Ok (acci, tl) ->
-         (match parse_atom acci tl with
+         (match try_parse_atom acci tl with
           | Ok (acci, tl) ->
-            (match parse_atom acci tl with
+            (match try_parse_atom acci tl with
              | Ok (acci, tl) ->
                (match parse_token Tokens.CP acci tl with
                 | Ok (acci, tl) -> Ok (Expr (List.rev acci) :: acc, tl)
@@ -108,12 +108,11 @@ module Types = struct
        | Error exn -> Error exn)
     | Error exn -> Error exn
 
-  (* TODO: Try to add ".+" and ".-" and so on to understand how the tree is being traversed. *)
   and parse tokens =
     match tokens with
     | [] -> raise (Failure "Unexpected EOF")
     | t ->
-      (match parse_expr [] t with
+      (match try_parse_expr [] t with
        | Ok (acc, _tl) -> Expr acc
        | Error exn -> raise exn)
   ;;
