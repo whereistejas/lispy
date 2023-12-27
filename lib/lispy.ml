@@ -79,7 +79,7 @@ module Types = struct
 
   let rec parse_token token acc tokens =
     match tokens with
-    | [] -> raise (Failure "Unexpected EOF")
+    | [] -> Error (Failure "Unexpected EOF")
     | t :: tl when t = token -> Ok (Atom t :: acc, tl)
     | t :: _ -> Error (unexpected_token token t)
 
@@ -87,33 +87,29 @@ module Types = struct
     match tokens with
     | [] -> Error (Failure "Unexpected EOF")
     | Tokens.OP :: _ -> try_parse_expr acc tokens
-    | (Tokens.S _ as token) :: tl -> Ok (Atom token :: acc, tl)
-    | (Tokens.N _ as token) :: tl -> Ok (Atom token :: acc, tl)
+    | (Tokens.S _ as token) :: rest -> Ok (Atom token :: acc, rest)
+    | (Tokens.N _ as token) :: rest -> Ok (Atom token :: acc, rest)
     | t :: _ -> Error (unexpected_token (Tokens.S "Symbol|Number") t)
 
   and try_parse_expr acc tokens =
-    match parse_token Tokens.OP [] tokens with
-    | Ok (acci, tl) ->
-      (match try_parse_atom acci tl with
-       | Ok (acci, tl) ->
-         (match try_parse_atom acci tl with
-          | Ok (acci, tl) ->
-            (match try_parse_atom acci tl with
-             | Ok (acci, tl) ->
-               (match parse_token Tokens.CP acci tl with
-                | Ok (acci, tl) -> Ok (Expr (List.rev acci) :: acc, tl)
-                | Error exn -> Error exn)
-             | Error exn -> Error exn)
-          | Error exn -> Error exn)
-       | Error exn -> Error exn)
-    | Error exn -> Error exn
+    let ( let* ) x f =
+      match x with
+      | Ok x -> f x
+      | Error _ as e -> e
+    in
+    let* parsed, rest = parse_token Tokens.OP [] tokens in
+    let* parsed, rest = try_parse_atom parsed rest in
+    let* parsed, rest = try_parse_atom parsed rest in
+    let* parsed, rest = try_parse_atom parsed rest in
+    let* parsed, rest = parse_token Tokens.CP parsed rest in
+    Ok (Expr parsed :: acc, rest)
 
   and parse tokens =
     match tokens with
     | [] -> raise (Failure "Unexpected EOF")
     | t ->
       (match try_parse_expr [] t with
-       | Ok (acc, _tl) -> Expr acc
+       | Ok (parsed, _rest) -> Expr parsed
        | Error exn -> raise exn)
   ;;
 end
