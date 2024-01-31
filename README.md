@@ -1,1 +1,0 @@
-A toy implementation of Lisp based on https://norvig.com/lispy.html.
