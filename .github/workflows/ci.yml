@@ -1,32 +1,25 @@
 name: CI
-
-on:
-  - pull_request
-  - push
+on: [push, pull_request]
 
 jobs:
-  build:
-    strategy:
-      fail-fast: true
-      matrix:
-        os:
-          - ubuntu-latest
-        ocaml-compiler:
-          - "5.1"
-
-    runs-on: ${{ matrix.os }}
-
+  clippy:
+    name: cargo test
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout tree
-        uses: actions/checkout@v4
-
-      - name: Set-up OCaml
-        uses: ocaml/setup-ocaml@v2
-        with:
-          ocaml-compiler: ${{ matrix.ocaml-compiler }}
-
-      - run: opam install . --deps-only --with-test
-
-      - run: opam exec -- dune build
-
-      - run: opam exec -- dune runtest
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo clippy --all-features
+  build:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --all-features
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features
