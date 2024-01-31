@@ -113,3 +113,19 @@ module Types = struct
     helper [] tokens
   ;;
 end
+
+let eval expr =
+  let open Tokens in
+  let open Types in
+  match expr with
+  | Atom a ->
+    (match a with
+     | OP _ -> ""
+     | S s -> s
+     | N n ->
+       (match n with
+        | F f -> Float.to_string f
+        | I i -> Int.to_string i)
+     | CP _ -> "")
+  | Expr e -> List.map (fun e -> expr e) e
+;;
